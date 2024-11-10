@@ -1,0 +1,20 @@
+arrowParens: avoid
+bracketSpacing: false
+singleQuote: false
+
+overrides:
+  - files: "*.js"
+    options:
+      printWidth: 300
+      tabWidth: 2
+      singleQuote: false
+  - files: "*.php"
+    options:
+      tabWidth: 5
+  - files: "*.vue"
+    options:
+      printWidth: 100
+      tabWidth: 2
+      singleQuote: false
+      bracketSpacing: false
+      arrowParens: avoid

@@ -1,0 +1,25 @@
+/* Scrollbar container */
+::-webkit-scrollbar {
+  width: 2px;  /* Make the scrollbar smaller */
+  height: 2px; /* If horizontal scrollbars are present */
+  background: transparent;  /* Keep the background transparent */
+}
+
+/* Scrollbar thumb (the draggable part) */
+::-webkit-scrollbar-thumb {
+  background-color: #c1c1c1;  /* Customize the color (red in this case) */
+  border-radius: 1px;  /* Smaller radius for a more minimal look */
+  transition: background-color 0.3s ease-in-out;  /* Smooth transition for hover effects */
+}
+
+/* Hover effect on the thumb */
+::-webkit-scrollbar-thumb:hover {
+  background-color: #c1c1c1;  /* Lighter color on hover */
+}
+
+/* Optional: Adjusting scroll track (if needed) */
+::-webkit-scrollbar-track {
+  margin-top: 8px;
+  margin-bottom: 8px;
+  background: transparent;  /* Transparent track for a cleaner look */
+}
