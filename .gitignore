@@ -23,15 +23,23 @@ dist/
 
 # Build outputs
 dist/
+dist-electron/
 build/
 *.local
 
-# !IMPORTANT! remove when start building/customizing these
+# Quasar mode folders
+# Remove a line here only when that mode contains source you want to version.
+/src-bex
 /src-cordova
-/src-electron
 /src-capacitor
+/src-electron
+/src-pwa
+/src-ssr
 
 # Environment variables
+.env
+.env.*
+!.env.example
 .env.local
 .env.*.local
 .env.local*
@@ -62,6 +70,9 @@ coverage/
 *.tmp
 *.temp
 .cache/
+
+*.code-workspace
+
 
 # Package manager lock files (uncomment if you want to ignore them)
 # package-lock.json

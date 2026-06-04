@@ -7,6 +7,7 @@ import type { PropType } from 'vue';
 // Vue & External Libs
 import { computed, onMounted, ref } from 'vue';
 import { Platform } from 'quasar';
+import { useRouter } from 'vue-router';
 // Composables
 import { useTableData } from 'src/composables/table/useTableData';
 import { useTableSelection } from 'src/composables/table/useTableSelection';
@@ -21,7 +22,7 @@ import ColumnControl from 'components/table/controls/ColumnControl.vue';
 import ScrollFabControl from 'components/table/controls/ScrollFabControl.vue';
 import GestureHint from 'components/UI/GestureHint.vue';
 // Types
-import type { FilterItem, QTableColumn } from 'src/types/QuasarTable';
+import type { FilterItem, QTableColumn } from 'src/types/quasarTable';
 
 // 2. PROPS
 const props = defineProps({
@@ -49,6 +50,11 @@ const props = defineProps({
     type: Number,
     default: 10,
   },
+  // jsonPaginate has no "all" page size, so 0 is replaced by a hard 200 cap.
+  rowsPerPageOptions: {
+    type: Array as PropType<number[]>,
+    default: () => [10, 25, 50, 100, 200],
+  },
   apiUrl: {
     type: String,
     required: true,
@@ -64,6 +70,14 @@ const props = defineProps({
   flat: {
     type: Boolean,
     default: true,
+  },
+  createRoute: {
+    type: String,
+    default: null,
+  },
+  createLabel: {
+    type: String,
+    default: 'Yeni Ekle',
   },
 });
 
@@ -104,6 +118,9 @@ const { rows, loading, pagination, onRequest, onFilterChange } = useTableData<T>
 
 // Table Export
 const { exportToCsv } = useTableExport<T>();
+
+// Router
+const router = useRouter();
 
 /**
  * 5. COMPUTED PROPERTIES
@@ -179,46 +196,27 @@ defineExpose({
   <ScrollFabControl :table-ref="tableRef" />
 
   <div class="table-container">
-    <q-table
-      ref="tableRef"
-      row-key="id"
-      :title="mobile ? '' : title"
-      :fullscreen="fullscreen"
-      class="virtual-scroll-table"
-      :class="!fullscreen ? 'table-max-height' : ''"
-      :flat="flat"
-      bordered
-      :dense="isDense"
-      :grid="isGrid"
-      v-model:pagination="pagination"
-      v-model:selected="selected"
-      :loading="loading"
-      :columns="orderedColumns"
-      :rows="rows"
-      :visible-columns="visibleColumnNames"
-      :selection="enableSelection ?? 'multiple'"
-      :separator="tableSeparator"
-      @request="(requestProps) => onRequest(requestProps.pagination)"
-      @selection="handleSelection"
-      virtual-scroll
-      :virtual-scroll-slice-size="30"
-      :virtual-scroll-item-size="30"
-      :virtual-scroll-buffer-size="100"
-    >
+    <q-table ref="tableRef" row-key="id" :title="mobile ? '' : title" :fullscreen="fullscreen"
+      class="virtual-scroll-table" :class="!fullscreen ? 'table-max-height' : ''" :flat="flat" bordered :dense="isDense"
+      :grid="isGrid" v-model:pagination="pagination" v-model:selected="selected" :loading="loading"
+      :columns="orderedColumns" :rows="rows" :visible-columns="visibleColumnNames"
+      :rows-per-page-options="rowsPerPageOptions" :selection="enableSelection ?? 'multiple'" :separator="tableSeparator"
+      @request="(requestProps) => onRequest(requestProps.pagination)" @selection="handleSelection" virtual-scroll
+      :virtual-scroll-slice-size="30" :virtual-scroll-item-size="30" :virtual-scroll-buffer-size="100">
       <template v-slot:top-right>
-        <div class="row items-center justify-center q-mb-md">
+        <div class="row items-center no-wrap q-gutter-sm q-mb-md">
+          <q-btn v-if="createRoute" color="teal" icon="add_circle_outline" :label="mobile ? '' : createLabel" size="sm"
+            flat @click="router.push({ name: createRoute })" />
+
+          <q-separator v-if="createRoute && !mobile" vertical inset spaced />
+
           <FilterIterator :mobile="mobile" :filters="columnFilters" @filter="onFilterChange" />
 
           <q-separator vertical inset spaced v-if="!mobile" />
 
-          <ColumnControl
-            :columns="props.columns"
-            :initial-columns="props.columns"
-            v-model:modelValueOrder="draggableColumns"
-            v-model:modelValueVisible="visibleColumnNames"
-            :mobile="mobile"
-            @saveSettings="handleSaveSettings"
-          />
+          <ColumnControl :columns="props.columns" :initial-columns="props.columns"
+            v-model:modelValueOrder="draggableColumns" v-model:modelValueVisible="visibleColumnNames" :mobile="mobile"
+            @saveSettings="handleSaveSettings" />
 
           <q-separator vertical inset spaced v-if="!mobile" />
 
@@ -230,53 +228,28 @@ defineExpose({
 
           <q-separator vertical inset spaced v-if="!mobile" />
 
-          <q-btn
-            size="sm"
-            flat
-            color="green"
-            icon="download"
-            @click="handleExportToCsv"
-            :label="mobile ? '' : 'CSV'"
-          />
+          <q-btn size="sm" flat color="green" icon="download" @click="handleExportToCsv" :label="mobile ? '' : 'CSV'" />
 
           <q-separator vertical inset spaced v-if="!mobile" />
 
-          <q-btn
-            size="sm"
-            flat
-            color="green"
-            :icon="fullscreen ? 'fullscreen_exit' : 'fullscreen'"
-            @click="fullscreen = !fullscreen"
-            :label="mobile ? '' : 'Tam Ekran'"
-          />
+          <q-btn size="sm" flat color="green" :icon="fullscreen ? 'fullscreen_exit' : 'fullscreen'"
+            @click="fullscreen = !fullscreen" :label="mobile ? '' : 'Tam Ekran'" />
         </div>
       </template>
 
       <template v-slot:body-cell="props">
         <q-td :props="props">
           <slot v-if="props.col.name === 'actions'" name="actions" :row="props.row" />
-          <component
-            v-else
-            :is="props.col.component || DefaultCell"
-            :value="props.value"
-            v-bind="props.col.componentProps"
-          />
+          <component v-else :is="props.col.component || DefaultCell" :value="props.value"
+            v-bind="props.col.componentProps" />
         </q-td>
       </template>
     </q-table>
   </div>
 
-  <GestureHint
-    v-if="enableSelection === 'multiple'"
-    text="SHIFT ve CTRL tuşlarıyla gelişmiş seçim yapın"
-    icon="keyboard"
-    position="center"
-    animation="pulse"
-    platform="desktop"
-    :duration="5000"
-    hint-id="table-shift-select"
-    background-color="rgba(25, 118, 210, 0.7)"
-  />
+  <GestureHint v-if="enableSelection === 'multiple'" text="SHIFT ve CTRL tuşlarıyla gelişmiş seçim yapın"
+    icon="keyboard" position="center" animation="pulse" platform="desktop" :duration="5000" hint-id="table-shift-select"
+    background-color="rgba(25, 118, 210, 0.7)" />
 </template>
 
 <style lang="scss">
@@ -289,6 +262,7 @@ defineExpose({
 }
 
 .virtual-scroll-table {
+
   .q-table__top,
   .q-table__bottom,
   thead tr:first-child th {

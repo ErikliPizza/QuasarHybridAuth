@@ -1,9 +1,13 @@
 <script setup lang="ts">
+import { onMounted } from 'vue';
 
 /**
  * Component providing UI for selecting the table's view mode.
  * Emits the selected view mode (1: Comfy, 2: Compact, 3: Grid).
+ * Persists selection to local storage.
  */
+
+const STORAGE_KEY = 'table-view-mode';
 
 // Props definition
 defineProps<{
@@ -21,10 +25,28 @@ const emit = defineEmits<{
   (e: 'view', value: 1 | 2 | 3): void
 }>();
 
-/** Emits the selected view value */
+/** Loads saved view from local storage */
+function getSavedView(): 1 | 2 | 3 {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    const parsed = parseInt(saved, 10);
+    if (parsed >= 1 && parsed <= 3) {
+      return parsed as 1 | 2 | 3;
+    }
+  }
+  return 1; // Default to Comfy view
+}
+
+/** Saves view selection to local storage and emits */
 function handleClick(value: 1 | 2 | 3) {
+  localStorage.setItem(STORAGE_KEY, String(value));
   emit('view', value);
 }
+
+// Emit saved view on mount so parent gets the initial value
+onMounted(() => {
+  emit('view', getSavedView());
+});
 </script>
 
 <template>

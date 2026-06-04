@@ -30,7 +30,7 @@
     </q-drawer>
 
     <!-- Right Drawer -->
-    <q-drawer show-if-above v-model="rightDrawerOpen" side="right" bordered class="column">
+    <q-drawer v-model="rightDrawerOpen" side="right" bordered class="column">
       <div class="q-pa-md bg-primary text-white">
         <div class="text-h6 text-weight-bold">Profile</div>
         <div class="text-caption text-grey-2">Account Settings</div>
@@ -44,8 +44,9 @@
             :email="authStore.user?.email ?? ''" :to="{ name: 'profile' }" />
 
           <q-separator class="q-my-md" />
-
         </q-list>
+
+        <NavigationMenu variant="profile" />
       </q-scroll-area>
 
       <LogoutItem :tfa-enabled="authStore.user?.tfa ?? false" @logout="logout" />
@@ -110,7 +111,7 @@ const isActive = (routeName: string): boolean => router.currentRoute.value.name 
 
 const logout = async (): Promise<void> => {
   await authStore.logout();
-  await router.push('/auth/login');
+  await router.push({ name: 'login' });
 };
 </script>
 

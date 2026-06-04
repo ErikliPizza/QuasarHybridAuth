@@ -1,78 +1,82 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
 import { useDataFetcher } from 'src/composables/useDataFetcher';
-import { getProfile } from 'src/services/requests/profile';
+import { getProfile, toggleProfileTfa } from 'src/features/profile/forms/formData';
 import type { Profile } from 'src/types/profile';
-import { formatDate, formatGender } from 'src/utils/formatters';
+import { computed, onBeforeMount, ref } from 'vue';
+import ProfileItem from 'src/components/layouts/Partials/ProfileItem.vue';
 
-const { data: profile, loadData } = useDataFetcher<Profile>(getProfile);
-
-onMounted(async () => {
-  await loadData();
-});
-
-interface FieldConfig {
+type FieldRow = {
   label: string;
-  value: string | null;
+  value: string | number | boolean | null | undefined;
+};
+
+const { data: profile, loadData, loading } = useDataFetcher<Profile>(() => getProfile());
+const togglingTfa = ref(false);
+
+onBeforeMount(loadData);
+
+async function onToggleTfa() {
+  if (togglingTfa.value) return;
+  togglingTfa.value = true;
+  try {
+    profile.value = await toggleProfileTfa();
+  } finally {
+    togglingTfa.value = false;
+  }
 }
 
-const sections = computed<Record<string, FieldConfig[]>>(() => {
-  if (!profile.value) return {};
+const isVisible = (row: FieldRow): boolean => row.value != null && row.value !== '';
 
-  return {
-    'Personal': [
-      { label: 'Birth Date', value: formatDate(profile.value.birth_date) },
-      { label: 'Gender', value: formatGender(profile.value.gender) },
-    ],
-    'Contact': [
-      { label: 'Phone', value: profile.value.phone || '—' },
-    ],
-    'Additional': [
-      { label: 'Created At', value: formatDate(profile.value.created_at) },
-    ],
-  };
+const rows = computed<FieldRow[]>(() => {
+  const p = profile.value;
+  return [
+    { label: 'Unvan', value: p?.role?.description ?? p?.role?.name },
+    { label: 'Ad Soyad', value: p?.name },
+    { label: 'Telefon', value: p?.phone },
+    { label: 'E-posta', value: p?.email },
+  ].filter(isVisible);
 });
 </script>
 
 <template>
-  <q-page padding>
-    <div v-if="profile" class="q-gutter-md">
-      <q-card flat bordered>
-        <q-card-section class="row items-center q-gutter-md">
-          <q-avatar size="80px">
-            <img :src="profile.gravatar" :alt="profile.name" />
-          </q-avatar>
-          <div>
-            <div class="text-h5 text-weight-medium">{{ profile.name }}</div>
-            <div class="text-subtitle1 text-grey-7">{{ profile.email }}</div>
-            <q-badge :color="profile.tfa ? 'positive' : 'grey-5'" :label="profile.tfa ? '2FA On' : '2FA Off'"
-              class="q-mt-sm q-pa-xs" />
-          </div>
-          <q-space />
-          <q-btn flat round icon="edit" :to="{ name: 'profile-edit' }">
-            <q-tooltip>Düzenle</q-tooltip>
-          </q-btn>
-          <q-btn flat round icon="refresh" @click="loadData">
-            <q-tooltip>Yenile</q-tooltip>
-          </q-btn>
-        </q-card-section>
-      </q-card>
+  <q-card class="q-pa-md" v-if="!loading">
+    <ProfileItem :avatar="profile?.gravatar ?? ''" :name="profile?.name ?? ''" :email="profile?.email ?? ''"
+      :to="{ name: 'profile-edit' }" />
 
-      <q-card v-for="(fields, title) in sections" :key="title" flat bordered>
-        <q-card-section>
-          <div class="text-h6 q-mb-md">{{ title }}</div>
-          <q-list separator>
-            <q-item v-for="field in fields" :key="field.label">
+    <div class="row q-col-gutter-md q-mt-sm">
+      <div class="col-12 col-md-6">
+        <q-card flat bordered>
+          <q-list class="row">
+            <q-item v-for="item in rows" :key="item.label" class="col-12">
               <q-item-section>
-                <q-item-label caption>{{ field.label }}</q-item-label>
-                <q-item-label>{{ field.value }}</q-item-label>
+                <q-item-label caption>{{ item.label }}</q-item-label>
+                <q-item-label class="text-weight-medium">{{ item.value }}</q-item-label>
+              </q-item-section>
+            </q-item>
+
+            <q-item class="col-12">
+              <q-item-section>
+                <q-item-label caption>2FA</q-item-label>
+                <q-item-label class="text-weight-medium">
+                  {{ profile?.tfa ? 'Açık' : 'Kapalı' }}
+                </q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-toggle :model-value="!!profile?.tfa" :disable="togglingTfa" color="primary"
+                  @update:model-value="onToggleTfa" />
               </q-item-section>
             </q-item>
           </q-list>
-        </q-card-section>
-      </q-card>
-    </div>
-  </q-page>
-</template>
 
-<style scoped></style>
+          <q-expansion-item v-if="profile?.permissions?.length" label="İzinler" icon="key"
+            header-class="text-weight-medium">
+            <div class="q-pa-sm q-gutter-xs">
+              <q-chip size="sm" v-for="permission in profile?.permissions" :key="permission.id"
+                :label="permission.description ?? ''" />
+            </div>
+          </q-expansion-item>
+        </q-card>
+      </div>
+    </div>
+  </q-card>
+</template>

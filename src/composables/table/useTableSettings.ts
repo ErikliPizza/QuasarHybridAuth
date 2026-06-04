@@ -1,5 +1,5 @@
 import { computed } from 'vue';
-import type { QTableColumn } from 'src/types/QuasarTable';
+import type { QTableColumn } from 'src/types/quasarTable';
 
 interface SavedSettings {
   order: string[];

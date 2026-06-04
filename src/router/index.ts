@@ -5,20 +5,11 @@ import {
   createWebHashHistory,
   createWebHistory,
 } from 'vue-router';
-import type { RouteLocationNormalized, NavigationGuardNext } from 'vue-router';
+import type { RouteLocationNormalized } from 'vue-router';
 import routes from './routes';
 import { useAuthStore } from 'src/stores/auth';
 
-/*
- * If not building with SSR mode, you can
- * directly export the Router instantiation;
- *
- * The function below can be async too; either use
- * async/await or return a Promise which resolves
- * with the Router instance.
- */
-
-export default defineRouter(function (/* { store, ssrContext } */) {
+export default defineRouter(function () {
   const createHistory = process.env.SERVER
     ? createMemoryHistory
     : process.env.VUE_ROUTER_MODE === 'history'
@@ -28,41 +19,28 @@ export default defineRouter(function (/* { store, ssrContext } */) {
   const Router = createRouter({
     scrollBehavior: () => ({ left: 0, top: 0 }),
     routes,
-
-    // Leave this as is and make changes in quasar.conf.js instead!
-    // quasar.conf.js -> build -> vueRouterMode
-    // quasar.conf.js -> build -> publicPath
     history: createHistory(process.env.VUE_ROUTER_BASE),
   });
 
-  // Add navigation guard for authentication
-  Router.beforeEach(
-    async (
-      to: RouteLocationNormalized,
-      from: RouteLocationNormalized,
-      next: NavigationGuardNext,
-    ) => {
-      const authStore = useAuthStore();
+  Router.beforeEach(async (to: RouteLocationNormalized) => {
+    const authStore = useAuthStore();
 
-      // Validate session for protected routes (throttled to prevent excessive API calls)
-      if (to.meta.requiresAuth) {
-        await authStore.validateSession();
+    if (to.meta.requiresAuth) {
+      const isValidSession = await authStore.validateSession();
+      if (!isValidSession) {
+        return { name: 'login' };
       }
+    }
 
-      // Redirect unauthenticated users to login
-      if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-        next({ name: 'login' });
+    if (to.meta.guestOnly && authStore.isAuthenticated) {
+      const isValidSession = await authStore.validateSession();
+      if (isValidSession) {
+        return { name: 'index' };
       }
-      // Redirect authenticated users away from guest-only pages
-      else if (to.meta.guestOnly && authStore.isAuthenticated) {
-        next('/');
-      }
-      // Allow navigation
-      else {
-        next();
-      }
-    },
-  );
+    }
+
+    return true;
+  });
 
   return Router;
 });

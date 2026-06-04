@@ -1,5 +1,5 @@
 import { exportFile } from 'quasar';
-import type { QTableColumn } from 'src/types/QuasarTable';
+import type { QTableColumn } from 'src/types/quasarTable';
 
 /**
  * Wraps a value for CSV export with proper formatting

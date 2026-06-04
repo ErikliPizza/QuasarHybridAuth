@@ -1,68 +1,32 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { FormKit, FormKitSchema } from '@formkit/vue';
+import { useForm } from 'laravel-precognition-vue';
+import CrudCards from 'src/components/UI/CrudCards.vue';
 import { useDataFetcher } from 'src/composables/useDataFetcher';
-import { getProfile, updateProfile } from 'src/services/requests/profile';
-import { profileEditSchema } from 'src/schemas/profile';
-import { mapFields } from 'src/utils/mappers';
+import ProfileForm from 'src/features/profile/components/ProfileForm.vue';
+import {
+  createProfileFormData,
+  getProfile,
+  mapProfileToFormData,
+} from 'src/features/profile/forms/formData';
+import { useAuthStore } from 'src/stores/auth';
 import type { Profile } from 'src/types/profile';
-import type { ProfileUpdatePayload } from 'src/services/requests/profile';
+import { onBeforeMount } from 'vue';
 
-const loading = ref(false);
+const { data: profile, loadData, loading } = useDataFetcher<Profile>(() => getProfile());
+const authStore = useAuthStore();
 
-const router = useRouter();
+const form = useForm('put', '/profile', createProfileFormData());
 
-const { data: profile, loadData } = useDataFetcher<Profile>(getProfile);
-
-// Form data
-const formData = ref<ProfileUpdatePayload>({});
-
-// Load profile data and populate form
-onMounted(async () => {
+onBeforeMount(async () => {
   await loadData();
-  if (profile.value) {
-    formData.value = mapFields(
-      [
-        'tfa',
-        'birth_date',
-        'gender',
-        'phone',
-      ],
-      profile.value,
-    );
-  }
+  form.setData(mapProfileToFormData(profile.value));
 });
 
-
-// Handle form submission
-const handleSubmit = async (data: ProfileUpdatePayload) => {
-  loading.value = true;
-  try {
-    await updateProfile(data);
-    await router.push({ name: 'profile' });
-  } catch (e) {
-    console.error(e);
-  } finally {
-    loading.value = false;
-  }
-
-};
+const submit = () => form.submit().then(() => authStore.fetchCurrentUser());
 </script>
 
 <template>
-    <div v-if="profile" class="q-pa-md">
-      <q-card class="q-pa-lg" flat bordered style="max-width: 800px; margin: auto">
-        <q-card-section>
-          <div class="text-h6 q-mb-md">Edit Profile</div>
-          <FormKit type="form" v-model="formData" submit-label="Send" @submit="handleSubmit">
-            <div class="formkit-grid-layout">
-              <FormKitSchema :schema="profileEditSchema" />
-            </div>
-          </FormKit>
-        </q-card-section>
-      </q-card>
-    </div>
+  <CrudCards v-if="!loading" submit-label="Güncelle" :processing="form.processing" @submit="submit" back-to="/profile">
+    <ProfileForm v-model="form" @submit="submit" />
+  </CrudCards>
 </template>
-
-<style scoped></style>

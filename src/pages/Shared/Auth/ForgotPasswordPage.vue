@@ -70,7 +70,7 @@ const verifyCodeAndResetPassword = async (): Promise<void> => {
     });
 
     resetCodeRequired.value = false;
-    await router.push('/auth/login');
+    await router.push({ name: 'login' });
   } catch (error: unknown) {
     console.error('Error resetting password:', error);
   }

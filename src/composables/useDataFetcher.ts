@@ -1,4 +1,4 @@
-import { ref, inject } from 'vue';
+import { ref, inject, computed, nextTick } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import type { QDialogOptions, QAjaxBar } from 'quasar';
@@ -33,6 +33,23 @@ export function useDataFetcher<T>(
   const loadingBar = inject<Ref<QAjaxBar | null>>('loadingBar');
   const mergedOptions = { ...defaultOptions, ...options } as Required<FetcherOptions>;
   const data = ref<T | null>(null);
+  const activeRequests = ref(0);
+  const loading = computed(() => activeRequests.value > 0);
+  const isProgressBarRunning = ref(false);
+
+  const startProgressBar = () => {
+    if (loadingBar?.value && !isProgressBarRunning.value) {
+      loadingBar.value.start();
+      isProgressBarRunning.value = true;
+    }
+  };
+
+  const stopProgressBar = () => {
+    if (loadingBar?.value && isProgressBarRunning.value) {
+      loadingBar.value.stop();
+      isProgressBarRunning.value = false;
+    }
+  };
 
   /**
    * Shows an error dialog with retry and cancel options.
@@ -87,54 +104,64 @@ export function useDataFetcher<T>(
   const loadData = async (): Promise<void> => {
     const TIMEOUT_MS = 6000; // 6 seconds
     let shouldRetry = true;
+    activeRequests.value += 1;
+    const isFirstActiveRequest = activeRequests.value === 1;
 
-    while (shouldRetry) {
-      // Show loading overlay and progress bar
-      if (mergedOptions.showLoading) {
-        $q.loading.show({
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          spinnerSize: 0,
-          message: '',
-        });
+    if (mergedOptions.showLoading && isFirstActiveRequest) {
+      // In early lifecycle hooks (e.g. onBeforeMount), template refs may not be ready yet.
+      await nextTick();
+      startProgressBar();
+    }
 
-        if (loadingBar?.value) {
-          loadingBar.value.start();
+    try {
+      while (shouldRetry) {
+        // Show loading overlay
+        if (mergedOptions.showLoading) {
+          // Keep trying until the provided ref becomes available.
+          if (activeRequests.value > 0) {
+            startProgressBar();
+          }
+
+          $q.loading.show({
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            spinnerSize: 0,
+            message: '',
+          });
+        }
+
+        try {
+          // Race between fetch and timeout
+          data.value = await Promise.race([fetchFn(), createTimeout(TIMEOUT_MS)]);
+          shouldRetry = false; // Success, exit loop
+        } catch (e) {
+          const errorMessage = e instanceof Error ? e.message : mergedOptions.errorMessage;
+
+          // Hide loading overlay on error before showing dialog
+          if (mergedOptions.showLoading) {
+            $q.loading.hide();
+          }
+
+          // Show error dialog and wait for user decision
+          shouldRetry = await showErrorDialog(errorMessage);
+        } finally {
+          // Hide loading overlay after each attempt
+          if (mergedOptions.showLoading) {
+            $q.loading.hide();
+          }
         }
       }
+    } finally {
+      activeRequests.value = Math.max(0, activeRequests.value - 1);
 
-      try {
-        // Race between fetch and timeout
-        data.value = await Promise.race([fetchFn(), createTimeout(TIMEOUT_MS)]);
-        shouldRetry = false; // Success, exit loop
-      } catch (e) {
-        const errorMessage = e instanceof Error ? e.message : mergedOptions.errorMessage;
-
-        // Hide loading overlay and progress bar on error
-        if (mergedOptions.showLoading) {
-          $q.loading.hide();
-
-          if (loadingBar?.value) {
-            loadingBar.value.stop();
-          }
-        }
-
-        // Show error dialog and wait for user decision
-        shouldRetry = await showErrorDialog(errorMessage);
-      } finally {
-        // Hide loading overlay and progress bar on success
-        if (mergedOptions.showLoading) {
-          $q.loading.hide();
-
-          if (loadingBar?.value) {
-            loadingBar.value.stop();
-          }
-        }
+      if (mergedOptions.showLoading && activeRequests.value === 0) {
+        stopProgressBar();
       }
     }
   };
 
   return {
     data,
+    loading,
     loadData,
   };
 }

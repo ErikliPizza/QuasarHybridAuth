@@ -9,7 +9,7 @@ const router = useRouter();
 const authStore = useAuthStore();
 
 // Form state
-const email = ref<string>('test@example.com');
+const email = ref<string>('admin@mega-demo.test');
 const password = ref<string>('password');
 const twoFactorCode = ref<string>('');
 const loading = ref<boolean>(false);

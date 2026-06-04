@@ -5,7 +5,7 @@
  * Uses v-model for order and visibility state synchronization with the parent.
  * Emits an event when settings should be saved (e.g., when the dropdown closes).
  */
-import type { QTableColumn } from 'src/types/QuasarTable';
+import type { QTableColumn } from 'src/types/quasarTable';
 import type { PropType } from 'vue';
 import { computed } from 'vue';
 import draggable from 'vuedraggable'

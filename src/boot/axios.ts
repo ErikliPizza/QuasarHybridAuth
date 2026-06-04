@@ -19,11 +19,29 @@ export interface ApiNotification {
 }
 
 /**
- * Standard API response wrapper with optional notification
+ * Standard top-level API response used by the backend response macros.
  */
-export interface ApiResponse<T = unknown> {
-  data?: T;
+export interface ApiResponse {
+  success?: boolean;
+  message?: string;
   notify?: ApiNotification;
+}
+
+/**
+ * Single-resource responses are flattened into the top-level response object.
+ */
+export type ApiResourceResponse<T extends object> = ApiResponse & T;
+
+/**
+ * Paginated collection responses keep Laravel's resource collection shape.
+ */
+export interface ApiCollectionResponse<T> extends ApiResponse {
+  data: T[];
+  meta?: {
+    total?: number;
+    [key: string]: unknown;
+  };
+  links?: Record<string, unknown>;
 }
 
 /**
@@ -48,14 +66,27 @@ export interface UnauthorizedResponse {
 // ============================================================================
 
 /**
- * Platform detection - determines which API base URL to use
+ * Platform detection - determines auth mode and which API base URL to use.
+ * Electron uses token auth like mobile builds, but it runs on the host machine
+ * and should use the regular desktop API URL instead of Android's 10.0.2.2.
  */
-const isMobileApp: boolean = !!(Platform.is.capacitor || Platform.is.cordova);
+const isNativeApp: boolean = !!(
+  Platform.is.capacitor ||
+  Platform.is.cordova ||
+  Platform.is.electron
+);
+const usesMobileApiBaseUrl: boolean = !!(Platform.is.capacitor || Platform.is.cordova);
+
+const isMobileApp: boolean = isNativeApp;
+const isTokenAuthRuntime = isNativeApp;
 
 /**
  * Storage key for auth token (should match auth store)
  */
-const AUTH_TOKEN_KEY = 'auth_token';
+const AUTH_STORAGE_KEYS = {
+  TOKEN: 'auth_token',
+  USER: 'auth_user',
+} as const;
 
 /**
  * Debounce delay for unauthorized handler (ms)
@@ -77,7 +108,7 @@ const ERROR_MESSAGES = {
  */
 const API_CONFIG = {
   /** Main API with versioned prefix (e.g., /api/v1) */
-  apiBaseUrl: isMobileApp
+  apiBaseUrl: usesMobileApiBaseUrl
     ? `${import.meta.env.VITE_API_BASE_URL_MOBILE}/${import.meta.env.VITE_API_BASE_PREFIX}`
     : `${import.meta.env.VITE_API_BASE_URL}/${import.meta.env.VITE_API_BASE_PREFIX}`,
 } as const;
@@ -106,7 +137,7 @@ const api: AxiosInstance = axios.create({
  * Attaches Bearer token to requests for mobile authentication
  */
 function attachAuthorizationHeader(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  const token = isTokenAuthRuntime ? localStorage.getItem(AUTH_STORAGE_KEYS.TOKEN) : null;
 
   if (token) {
     config.headers.set('Authorization', `Bearer ${token}`);
@@ -171,7 +202,8 @@ const handleUnauthorizedAccess = debounce((): void => {
 
   console.warn('Unauthorized access detected, redirecting to login.');
   authStore.clearAuthState();
-  window.location.replace('/login');
+  const loginPath = process.env.VUE_ROUTER_MODE === 'history' ? '/auth/login' : '#/auth/login';
+  window.location.replace(loginPath);
 }, UNAUTHORIZED_DEBOUNCE_MS);
 
 /**
@@ -258,7 +290,11 @@ setupResponseInterceptors(api);
  * Note: CSRF endpoint is at root level, not under /api/v1
  */
 async function initializeCsrfToken(): Promise<void> {
-  const baseUrl = isMobileApp
+  if (isTokenAuthRuntime) {
+    return;
+  }
+
+  const baseUrl = usesMobileApiBaseUrl
     ? import.meta.env.VITE_API_BASE_URL_MOBILE
     : import.meta.env.VITE_API_BASE_URL;
 
@@ -292,4 +328,13 @@ export default boot(({ app }) => {
 // EXPORTS
 // ============================================================================
 
-export { api, initializeCsrfToken, isMobileApp, API_CONFIG, ERROR_MESSAGES, showNotification };
+export {
+  api,
+  initializeCsrfToken,
+  isMobileApp,
+  isTokenAuthRuntime,
+  AUTH_STORAGE_KEYS,
+  API_CONFIG,
+  ERROR_MESSAGES,
+  showNotification,
+};

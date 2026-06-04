@@ -1,20 +1,17 @@
-/**
- * Gender options
- */
-export type Gender = 'male' | 'female';
+import type { Permission } from './permission';
+import type { Role } from './role';
 
-/**
- * Full user profile returned from the API
- */
 export interface Profile {
   id: number;
   name: string;
   email: string;
+  phone: string | null;
   gravatar: string;
   tfa: boolean;
-  birth_date: string | null; // Y-m-d format
-  gender: Gender | null;
-  phone: string | null;
-  created_at: string | null; // ISO string format
-  updated_at: string | null; // ISO string format
+  status: number;
+  status_label: string;
+  role?: Role | null;
+  permissions?: Permission[];
+  created_at: string | null;
+  updated_at: string | null;
 }

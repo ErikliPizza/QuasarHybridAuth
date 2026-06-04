@@ -1,24 +1,29 @@
 import { defineStore } from 'pinia';
-import { api, initializeCsrfToken } from 'boot/axios';
-import { Platform } from 'quasar';
-import type { AxiosResponse } from 'axios';
+import {
+  AUTH_STORAGE_KEYS,
+  api,
+  initializeCsrfToken,
+  isTokenAuthRuntime,
+} from 'boot/axios';
+import type { ApiResourceResponse } from 'boot/axios';
 
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
 
 /**
- * User entity returned from the API
+ * Authenticated user returned by GET /auth/me.
  */
-export interface User {
+export interface AuthUser {
   id: number;
   name: string;
   email: string;
   gravatar: string;
   tfa: boolean;
-  roles: string[];
   permissions: string[];
 }
+
+export type User = AuthUser;
 
 /**
  * Login credentials payload
@@ -52,14 +57,26 @@ export interface PasswordResetPayload {
   password_confirmation: string;
 }
 
+export interface RegisterPayload {
+  email: string;
+  password: string;
+  code: string;
+}
+
 /**
  * Authentication response from the API
  */
-export interface AuthResponse {
+export interface AuthPayload {
   token?: string;
   two_factor_required?: boolean;
-  user?: User;
+  user?: AuthUser;
 }
+
+export type AuthResponse = ApiResourceResponse<AuthPayload>;
+
+export type CurrentUserResponse = ApiResourceResponse<{
+  user: AuthUser;
+}>;
 
 /**
  * Result of a login attempt
@@ -73,11 +90,11 @@ export interface LoginResult {
 /**
  * Internal auth store state
  */
-interface AuthState {
+export interface AuthState {
   /** Whether the app is running on a mobile platform (Capacitor/Cordova/Electron) */
   isMobileApp: boolean;
   /** Current authenticated user */
-  user: User | null;
+  user: AuthUser | null;
   /** Whether the user is currently authenticated */
   isAuthenticated: boolean;
   /** Bearer token for mobile authentication */
@@ -93,15 +110,6 @@ interface AuthState {
 }
 
 // ============================================================================
-// STORAGE KEYS (centralized for consistency)
-// ============================================================================
-
-const STORAGE_KEYS = {
-  TOKEN: 'auth_token',
-  USER: 'auth_user',
-} as const;
-
-// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 
@@ -111,9 +119,9 @@ const STORAGE_KEYS = {
  * Returns null if data is missing, corrupted, or invalid
  * Called during store initialization to restore user from previous session
  */
-function getSavedUser(): User | null {
+function getSavedUser(): AuthUser | null {
   try {
-    const stored = localStorage.getItem(STORAGE_KEYS.USER);
+    const stored = localStorage.getItem(AUTH_STORAGE_KEYS.USER);
     if (!stored) return null;
 
     const parsed = JSON.parse(stored) as unknown;
@@ -124,17 +132,18 @@ function getSavedUser(): User | null {
       parsed !== null &&
       'id' in parsed &&
       'email' in parsed &&
-      'name' in parsed
+      'name' in parsed &&
+      'permissions' in parsed
     ) {
-      return parsed as User;
+      return parsed as AuthUser;
     }
 
     // Invalid structure - clean up corrupted data
-    localStorage.removeItem(STORAGE_KEYS.USER);
+    localStorage.removeItem(AUTH_STORAGE_KEYS.USER);
     return null;
   } catch {
     // JSON parse failed - clean up corrupted data
-    localStorage.removeItem(STORAGE_KEYS.USER);
+    localStorage.removeItem(AUTH_STORAGE_KEYS.USER);
     return null;
   }
 }
@@ -143,14 +152,7 @@ function getSavedUser(): User | null {
  * Safely retrieves the auth token from localStorage
  */
 function getSavedToken(): string | null {
-  return localStorage.getItem(STORAGE_KEYS.TOKEN);
-}
-
-/**
- * Detects if the app is running on a mobile platform
- */
-function detectMobilePlatform(): boolean {
-  return !!(Platform.is.capacitor || Platform.is.cordova || Platform.is.electron);
+  return isTokenAuthRuntime ? localStorage.getItem(AUTH_STORAGE_KEYS.TOKEN) : null;
 }
 
 // ============================================================================
@@ -167,7 +169,7 @@ export const useAuthStore = defineStore('auth', {
     const savedUser = getSavedUser();
 
     return {
-      isMobileApp: detectMobilePlatform(),
+      isMobileApp: isTokenAuthRuntime,
       user: savedUser, // ← User loaded from localStorage here
       isAuthenticated: savedUser !== null,
       token: getSavedToken(),
@@ -221,12 +223,12 @@ export const useAuthStore = defineStore('auth', {
      */
     async login(credentials: LoginCredentials): Promise<LoginResult> {
       try {
-        const response = this.isMobileApp
+        const authResponse = this.isMobileApp
           ? await this.authenticateWithToken(credentials)
           : await this.authenticateWithSession(credentials);
 
         // Handle 2FA requirement
-        if (response.two_factor_required) {
+        if (authResponse.two_factor_required) {
           this.pendingTwoFactor = true;
           this.pendingCredentials = credentials;
           return { success: false, requiresTwoFactor: true };
@@ -271,11 +273,11 @@ export const useAuthStore = defineStore('auth', {
         ? '/auth/verify-two-factor'
         : '/auth/verify-two-factor-session';
 
-      const response: AxiosResponse<AuthResponse> = await api.post(endpoint, payload);
+      const { data } = await api.post<AuthResponse>(endpoint, payload);
 
       // Store token for mobile auth
-      if (this.isMobileApp && response.data.token) {
-        this.persistToken(response.data.token);
+      if (this.isMobileApp && data.token) {
+        this.persistToken(data.token);
       }
 
       // 🔄 USER SYNC POINT #4: After 2FA Completion
@@ -311,6 +313,11 @@ export const useAuthStore = defineStore('auth', {
      * Uses a throttled approach to prevent excessive API calls
      */
     async validateSession(): Promise<boolean> {
+      if (this.isMobileApp && !this.token) {
+        this.clearAuthState();
+        return false;
+      }
+
       const now = Date.now();
       const shouldCheck =
         !this.lastSessionCheck || now - this.lastSessionCheck > this.sessionCheckInterval;
@@ -323,9 +330,9 @@ export const useAuthStore = defineStore('auth', {
         // 🔄 USER SYNC POINT #5: Session Validation (Throttled)
         // Periodically syncs user data from API to ensure it's up-to-date
         // Only runs if enough time has passed since last check (throttled)
-        await this.fetchCurrentUser();
+        const user = await this.fetchCurrentUser();
         this.lastSessionCheck = now;
-        return true;
+        return user !== null;
       } catch {
         return false;
       }
@@ -353,6 +360,20 @@ export const useAuthStore = defineStore('auth', {
       return api.post('/auth/password/reset/apply', payload).then(() => undefined);
     },
 
+    /**
+     * Starts email verification for a new registration.
+     */
+    preRegister(payload: LoginCredentials): Promise<void> {
+      return api.post('/auth/preregister', payload).then(() => undefined);
+    },
+
+    /**
+     * Completes registration after the email verification code is entered.
+     */
+    register(payload: RegisterPayload): Promise<void> {
+      return api.post('/auth/register', payload).then(() => undefined);
+    },
+
     // ========================================================================
     // PUBLIC: User Management
     // ========================================================================
@@ -363,10 +384,10 @@ export const useAuthStore = defineStore('auth', {
      * This is the PRIMARY method for retrieving user information from the server
      * Called by: login(), completeTwoFactorAuth(), validateSession()
      */
-    async fetchCurrentUser(): Promise<User | null> {
+    async fetchCurrentUser(): Promise<AuthUser | null> {
       try {
         // API call to fetch user data
-        const response = await api.get<{ user: User }>('/auth/me');
+        const response = await api.get<CurrentUserResponse>('/auth/me');
 
         if (response.status === 200 && response.data.user) {
           // Sync user data to store and localStorage
@@ -374,6 +395,7 @@ export const useAuthStore = defineStore('auth', {
           return this.user;
         }
 
+        this.clearAuthState();
         return null;
       } catch (error) {
         this.clearAuthState();
@@ -390,8 +412,8 @@ export const useAuthStore = defineStore('auth', {
       this.token = null;
       this.clearPendingTwoFactor();
 
-      localStorage.removeItem(STORAGE_KEYS.TOKEN);
-      localStorage.removeItem(STORAGE_KEYS.USER);
+      localStorage.removeItem(AUTH_STORAGE_KEYS.TOKEN);
+      localStorage.removeItem(AUTH_STORAGE_KEYS.USER);
 
       delete api.defaults.headers.common['Authorization'];
     },
@@ -404,13 +426,13 @@ export const useAuthStore = defineStore('auth', {
      * Authenticates using token-based auth (mobile platforms)
      */
     async authenticateWithToken(credentials: LoginCredentials): Promise<AuthResponse> {
-      const response: AxiosResponse<AuthResponse> = await api.post('/auth/login', credentials);
+      const { data } = await api.post<AuthResponse>('/auth/login', credentials);
 
-      if (response.data.token) {
-        this.persistToken(response.data.token);
+      if (data.token) {
+        this.persistToken(data.token);
       }
 
-      return response.data;
+      return data;
     },
 
     /**
@@ -418,8 +440,8 @@ export const useAuthStore = defineStore('auth', {
      */
     async authenticateWithSession(credentials: LoginCredentials): Promise<AuthResponse> {
       await initializeCsrfToken();
-      const response = await api.post<AuthResponse>('/auth/login-session', credentials);
-      return response.data;
+      const { data } = await api.post<AuthResponse>('/auth/login-session', credentials);
+      return data;
     },
 
     /**
@@ -429,16 +451,16 @@ export const useAuthStore = defineStore('auth', {
      *
      * Flow: API → fetchCurrentUser() → setUser() → state + localStorage
      */
-    setUser(user: User | null): void {
+    setUser(user: AuthUser | null): void {
       // Update in-memory state
       this.user = user;
       this.isAuthenticated = user !== null;
 
       // Persist to localStorage for next session
       if (user) {
-        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+        localStorage.setItem(AUTH_STORAGE_KEYS.USER, JSON.stringify(user));
       } else {
-        localStorage.removeItem(STORAGE_KEYS.USER);
+        localStorage.removeItem(AUTH_STORAGE_KEYS.USER);
       }
     },
 
@@ -447,7 +469,7 @@ export const useAuthStore = defineStore('auth', {
      */
     persistToken(token: string): void {
       this.token = token;
-      localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+      localStorage.setItem(AUTH_STORAGE_KEYS.TOKEN, token);
     },
 
     /**

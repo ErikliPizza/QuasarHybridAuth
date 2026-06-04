@@ -26,9 +26,9 @@ interface SelectionDetails<T> {
  * @param tableRef - A ref to the QTable component instance exposing filteredSortedRows.
  * @returns selected state, stored anchor row, and the handleSelection function.
  */
-export function useTableSelection<
-  T extends { id: string | number }
->(tableRef: Ref<TableRef<T> | null>) {
+export function useTableSelection<T extends { id: string | number }>(
+  tableRef: Ref<TableRef<T> | null>,
+) {
   /**
    * Currently selected rows.
    */
@@ -67,8 +67,8 @@ export function useTableSelection<
     if (evt.shiftKey) {
       // Range selection logic
       const tableRows = tableRef.value?.filteredSortedRows ?? [];
-      let firstIndex = tableRows.findIndex(r => r.id === oldRow?.id);
-      let lastIndex = tableRows.findIndex(r => r.id === newRow.id);
+      let firstIndex = tableRows.findIndex((r) => r.id === oldRow?.id);
+      let lastIndex = tableRows.findIndex((r) => r.id === newRow.id);
 
       if (firstIndex < 0) firstIndex = 0;
       if (firstIndex > lastIndex) [firstIndex, lastIndex] = [lastIndex, firstIndex];
@@ -78,12 +78,12 @@ export function useTableSelection<
       const currentSelection = toRaw(selected.value) as T[];
 
       if (added) {
-        const currentIds = new Set(currentSelection.map(r => r.id));
-        const toAdd = rangeRows.filter(r => !currentIds.has(r.id));
+        const currentIds = new Set(currentSelection.map((r) => r.id));
+        const toAdd = rangeRows.filter((r) => !currentIds.has(r.id));
         selected.value = [...currentSelection, ...toAdd];
       } else {
-        const rangeIds = new Set(rangeRows.map(r => r.id));
-        selected.value = currentSelection.filter(r => !rangeIds.has(r.id));
+        const rangeIds = new Set(rangeRows.map((r) => r.id));
+        selected.value = currentSelection.filter((r) => !rangeIds.has(r.id));
       }
     } else if (!evt.ctrlKey && added) {
       // Plain click to select single row

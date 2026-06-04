@@ -1,50 +1,41 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { useRouter } from "vue-router";
-import { Notify, QSpinnerDots } from "quasar";
-import { api } from "boot/axios";
-
-interface PreRegisterData {
-  email: string;
-  password: string;
-}
-
-interface RegisterData extends PreRegisterData {
-  code: string;
-}
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { Notify, QSpinnerDots } from 'quasar';
+import { useAuthStore } from 'src/stores/auth';
 
 const router = useRouter();
-const email = ref<string>("");
-const password = ref<string>("");
-const verificationCode = ref<string>("");
+const authStore = useAuthStore();
+const email = ref<string>('');
+const password = ref<string>('');
+const verificationCode = ref<string>('');
 const loading = ref<boolean>(false);
 const showConfirmation = ref<boolean>(false);
 const resendDisabled = ref<boolean>(true);
 const timer = ref<number>(180);
 
 const passwordRules = [
-  (val: string) => !!val || "Password is required",
-  (val: string) => val.length >= 8 || "Password must be at least 8 characters",
+  (val: string) => !!val || 'Password is required',
+  (val: string) => val.length >= 8 || 'Password must be at least 8 characters',
 ];
 
 const codeRules = [
-  (val: string) => !!val || "Verification code is required",
-  (val: string) => /^[0-9]{6}$/.test(val) || "Verification code must be 6 digits",
+  (val: string) => !!val || 'Verification code is required',
+  (val: string) => /^[0-9]{6}$/.test(val) || 'Verification code must be 6 digits',
 ];
 
 // Pre-register function
 const preRegister = async (): Promise<void> => {
   loading.value = true;
   try {
-    const data: PreRegisterData = {
+    await authStore.preRegister({
       email: email.value,
       password: password.value,
-    };
-    await api.post("/auth/preregister", data);
+    });
     showConfirmation.value = true;
     startResendTimer();
   } catch (error) {
-    console.error("Pre-registration error:", error);
+    console.error('Pre-registration error:', error);
   } finally {
     loading.value = false;
   }
@@ -54,15 +45,14 @@ const preRegister = async (): Promise<void> => {
 const register = async (): Promise<void> => {
   loading.value = true;
   try {
-    const data: RegisterData = {
+    await authStore.register({
       email: email.value,
       password: password.value,
       code: verificationCode.value,
-    };
-    await api.post("/auth/register", data);
-    await router.push("/auth/login");
+    });
+    await router.push({ name: 'login' });
   } catch (error) {
-    console.error("Registration error:", error);
+    console.error('Registration error:', error);
   } finally {
     loading.value = false;
   }
@@ -70,10 +60,10 @@ const register = async (): Promise<void> => {
 
 const cancelRegistration = (): void => {
   showConfirmation.value = false;
-  verificationCode.value = "";
+  verificationCode.value = '';
   Notify.create({
-    type: "info",
-    message: "Registration canceled.",
+    type: 'info',
+    message: 'Registration canceled.',
   });
 };
 

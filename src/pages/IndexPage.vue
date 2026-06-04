@@ -1,15 +1,13 @@
 <template>
-  <q-page class="flex flex-center">
-    <q-card class="q-pa-lg" style="max-width: 800px; width: 100%">
-      <q-card-section>
-        <div class="row items-center justify-between q-mb-md">
-          <div class="text-h5">Auth Store Details</div>
-          <q-btn color="primary" icon="refresh" label="Refresh User Info" :loading="loading" @click="refreshUser" />
-        </div>
-        <pre class="q-pa-md bg-grey-2 rounded-borders" style="overflow-x: auto">{{ authDetails }}</pre>
-      </q-card-section>
-    </q-card>
-  </q-page>
+  <q-card flat>
+    <q-card-section>
+      <div class="row items-center justify-between q-mb-md">
+        <div class="text-h5">Auth Store Details</div>
+        <q-btn color="primary" icon="refresh" label="Refresh User Info" :loading="loading" @click="refreshUser" />
+      </div>
+      <pre class="q-pa-md bg-grey-2 rounded-borders text-caption" style="overflow-x: auto">{{ authDetails }}</pre>
+    </q-card-section>
+  </q-card>
 </template>
 
 <script setup lang="ts">

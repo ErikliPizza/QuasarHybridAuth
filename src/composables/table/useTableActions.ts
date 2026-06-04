@@ -22,17 +22,17 @@ export function useTableActions({
 
     $q.dialog({
       title: confirmTitle,
-      dark: true,
+      dark: false,
       persistent: true,
       html: true,
       message: `
-        <div style="font-size:14px;line-height:1.6;color:#ccc">
-          <b style="color:#ff5252">Bu işlem geri alınamaz!</b><br/>
+        <div style="font-size:14px;line-height:1.6;color:#37474F">
+          <b style="color:#26A69A">Bu işlem geri alınamaz</b><br/>
           ${confirmMessage}
         </div>
       `,
       ok: { label: 'Sil', color: 'negative', unelevated: true },
-      cancel: { label: 'Vazgeç', flat: true },
+      cancel: { label: 'Vazgeç', color: 'primary', flat: true },
     }).onOk(() => {
       api
         .delete(`${baseUrl}/${row.id}`)

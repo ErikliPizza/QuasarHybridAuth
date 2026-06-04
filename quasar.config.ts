@@ -6,7 +6,7 @@ import { defineConfig } from '#q-app/wrappers';
 export default defineConfig((/* ctx */) => {
   return {
     bin: {
-      linuxAndroidStudio: '/snap/android-studio/161/bin/studio.sh', // Replace with your actual path
+      linuxAndroidStudio: '/snap/android-studio/current/bin/studio.sh',
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
@@ -15,7 +15,7 @@ export default defineConfig((/* ctx */) => {
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: ['auth.ts', 'axios', 'notify-defaults', 'formkit'],
+    boot: ['auth.ts', 'axios', 'precognition', 'notify-defaults', 'vue-query'],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css
     css: ['app.scss'],
@@ -90,6 +90,7 @@ export default defineConfig((/* ctx */) => {
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework
     framework: {
       config: {},
+      cssAddon: true,
 
       // iconSet: 'material-icons', // Quasar icon set
       // lang: 'en-US', // Quasar language pack
@@ -117,8 +118,6 @@ export default defineConfig((/* ctx */) => {
     //   pwaRegisterServiceWorker: 'src-pwa/register-service-worker',
     //   pwaServiceWorker: 'src-pwa/custom-service-worker',
     //   pwaManifestFile: 'src-pwa/manifest.json',
-    //   electronMain: 'src-electron/electron-main',
-    //   electronPreload: 'src-electron/electron-preload'
     //   bexManifestFile: 'src-bex/manifest.json
     // },
 
@@ -167,39 +166,6 @@ export default defineConfig((/* ctx */) => {
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-capacitor-apps/configuring-capacitor
     capacitor: {
       hideSplashscreen: true,
-    },
-
-    // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-electron-apps/configuring-electron
-    electron: {
-      // extendElectronMainConf (esbuildConf) {},
-      // extendElectronPreloadConf (esbuildConf) {},
-
-      // extendPackageJson (json) {},
-
-      // Electron preload scripts (if any) from /src-electron, WITHOUT file extension
-      preloadScripts: ['electron-preload'],
-
-      // specify the debugging port to use for the Electron app when running in development mode
-      inspectPort: 5858,
-
-      bundler: 'packager', // 'packager' or 'builder'
-
-      packager: {
-        // https://github.com/electron-userland/electron-packager/blob/master/docs/api.md#options
-        // OS X / Mac App Store
-        // appBundleId: '',
-        // appCategoryType: '',
-        // osxSign: '',
-        // protocol: 'myapp://path',
-        // Windows only
-        // win32metadata: { ... }
-      },
-
-      builder: {
-        // https://www.electron.build/configuration/configuration
-
-        appId: 'quasar-hybrid-auth-ts',
-      },
     },
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-browser-extensions/configuring-bex

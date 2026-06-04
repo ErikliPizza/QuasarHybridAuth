@@ -1,9 +1,16 @@
 <script setup lang="ts">
+import { onMounted } from 'vue';
 
 /**
  * Component providing UI for selecting the table's cell separator style.
  * Emits the selected separator style.
+ * Persists selection to local storage.
  */
+
+type SeparatorType = 'horizontal' | 'vertical' | 'cell' | 'none';
+
+const STORAGE_KEY = 'table-separator-style';
+const VALID_VALUES: SeparatorType[] = ['horizontal', 'vertical', 'cell', 'none'];
 
 // Props definition
 defineProps<{
@@ -18,13 +25,28 @@ const emit = defineEmits<{
    * @param e
    * @param value The selected separator style
    */
-  (e: 'separator', value: 'horizontal' | 'vertical' | 'cell' | 'none'): void
+  (e: 'separator', value: SeparatorType): void
 }>();
 
-/** Emits the selected separator value */
-function handleClick(value: 'horizontal' | 'vertical' | 'cell' | 'none') {
+/** Loads saved separator from local storage */
+function getSavedSeparator(): SeparatorType {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved && VALID_VALUES.includes(saved as SeparatorType)) {
+    return saved as SeparatorType;
+  }
+  return 'horizontal'; // Default
+}
+
+/** Saves separator selection to local storage and emits */
+function handleClick(value: SeparatorType) {
+  localStorage.setItem(STORAGE_KEY, value);
   emit('separator', value);
 }
+
+// Emit saved separator on mount so parent gets the initial value
+onMounted(() => {
+  emit('separator', getSavedSeparator());
+});
 </script>
 
 <template>

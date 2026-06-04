@@ -1,6 +1,11 @@
 import { computed, reactive, ref } from 'vue';
 import { api } from 'boot/axios';
-import type { FilterItem, QTablePagination, SpatieParams } from 'src/types/QuasarTable';
+import type { ApiCollectionResponse } from 'boot/axios';
+import type {
+  FilterItem,
+  QTablePagination,
+  SpatieParams,
+} from 'src/types/quasarTable';
 
 /**
  * Composable to handle table data fetching, pagination and filtering
@@ -43,15 +48,24 @@ export function useTableData<T extends Record<string, unknown> & { id: string | 
     descending,
   }: QTablePagination): SpatieParams => {
     const params: SpatieParams = {
-      page,
-      ...(rowsPerPage != null && { rowsPerPage }),
+      page: {
+        number: page,
+        ...(rowsPerPage != null && rowsPerPage > 0 && { size: rowsPerPage }),
+      },
       ...(sortBy && { sort: descending ? `-${sortBy}` : sortBy }),
       filter: {},
     };
 
     columnFilters.forEach((filter) => {
-      const v = filter.value?.toString().trim();
-      if (v) params.filter[filter.key] = v;
+      const raw = filter.value;
+      if (raw == null || raw === '') return;
+      const key = String(filter.key);
+      if (typeof raw === 'number') {
+        if (Number.isFinite(raw)) params.filter[key] = String(raw);
+        return;
+      }
+      const t = String(raw).trim();
+      if (t) params.filter[key] = t;
     });
 
     return params;
@@ -61,13 +75,13 @@ export function useTableData<T extends Record<string, unknown> & { id: string | 
     try {
       loading.value = true;
 
-      const { data } = await api.get(apiUrl, {
+      const { data } = await api.get<ApiCollectionResponse<T>>(apiUrl, {
         params: buildRequestParams(p),
       });
 
       if (data.success) {
-        rows.value = data.rows as T[];
-        Object.assign(paginationState, p, { rowsNumber: data.rowsNumber });
+        rows.value = data.data ?? [];
+        Object.assign(paginationState, p, { rowsNumber: data.meta?.total ?? rows.value.length });
       }
     } catch (err) {
       console.error('Error fetching data:', err);
